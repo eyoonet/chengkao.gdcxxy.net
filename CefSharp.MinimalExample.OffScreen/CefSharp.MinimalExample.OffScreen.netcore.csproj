@@ -4,7 +4,7 @@
        to set BaseIntermediateOutputPath and BaseOutputPath before the SDK props are imported. -->
   <PropertyGroup>
     <BaseIntermediateOutputPath>obj.netcore\</BaseIntermediateOutputPath>
-    <BaseOutputPath>bin.netcore\</BaseOutputPath>
+    <BaseOutputPath>..\build\</BaseOutputPath>
   </PropertyGroup>
 
   <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
@@ -53,14 +53,17 @@
   
   <ItemGroup>
     <Compile Remove="bin.net472\**" />
+    <Compile Remove="bin.netcore\**" />
     <Compile Remove="bin\**" />
     <Compile Remove="obj.net472\**" />
     <Compile Remove="obj\**" />
     <EmbeddedResource Remove="bin.net472\**" />
+    <EmbeddedResource Remove="bin.netcore\**" />
     <EmbeddedResource Remove="bin\**" />
     <EmbeddedResource Remove="obj.net472\**" />
     <EmbeddedResource Remove="obj\**" />
     <None Remove="bin.net472\**" />
+    <None Remove="bin.netcore\**" />
     <None Remove="bin\**" />
     <None Remove="obj.net472\**" />
     <None Remove="obj\**" />
@@ -72,6 +75,10 @@
 
   <ItemGroup>
     <PackageReference Include="CefSharp.OffScreen.NetCore" Version="117.2.40" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CefSharp.MinimalExample.GrpcProtocol\CefSharp.MinimalExample.GrpcProtocol.csproj" />
   </ItemGroup>
 
   <ItemGroup>

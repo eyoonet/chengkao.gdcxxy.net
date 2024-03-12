@@ -5,6 +5,7 @@
   <PropertyGroup>
     <BaseIntermediateOutputPath>obj.netcore\</BaseIntermediateOutputPath>
     <BaseOutputPath>bin.netcore\</BaseOutputPath>
+    <BaseOutputPath>..\build\</BaseOutputPath>
   </PropertyGroup>
 
   <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk.WindowsDesktop" />
@@ -85,7 +86,44 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\CefSharp.MinimalExample.GrpcProtocol\CefSharp.MinimalExample.GrpcProtocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="JsCall\JsBridge.cs">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="chengkao.gdcxxy.net\common\common.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="chengkao.gdcxxy.net\gdcx\jp_wiki_study.php\study.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="chengkao.gdcxxy.net\gdcx\login2.php\hook.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="chengkao.gdcxxy.net\gdcx\mycourse.php\hook.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="chengkao.gdcxxy.net\gdcx\studycenter_cy.php\hook.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="chengkao.gdcxxy.net\gdcx\studycenter_zy.php\hook.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="chengkao.gdcxxy.net\gdcx\wiki_exam_cy.php\hook.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="chengkao.gdcxxy.net\gdcx\wiki_exam_zy.php\hook.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="crash_reporter.cfg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="turing.captcha.qcloud.com\cap_union_new_show\hook.js">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

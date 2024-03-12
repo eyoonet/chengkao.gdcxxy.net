@@ -2,12 +2,20 @@
 //
 // Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 
+using cef.protocol;
+using CefSharp.DevTools.DOM;
 using CefSharp.DevTools.IO;
+using CefSharp.DevTools.Network;
 using CefSharp.MinimalExample.WinForms.Controls;
+using CefSharp.MinimalExample.WinForms.JsCall;
 using CefSharp.WinForms;
+using Grpc.Core;
 using System;
 using System.Net;
+using System.Threading.Tasks;
 using System.Windows.Forms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using ChromiumWebBrowser = CefSharp.WinForms.ChromiumWebBrowser;
 
 namespace CefSharp.MinimalExample.WinForms
 {
@@ -20,17 +28,16 @@ namespace CefSharp.MinimalExample.WinForms
 #endif
         private readonly string title = "CefSharp.MinimalExample.WinForms (" + Build + ")";
         private readonly ChromiumWebBrowser browser;
-
-        public BrowserForm()
+        public CefProtocolService.CefProtocolServiceClient GrpcClient { get; set; }
+        public BrowserForm(CefProtocolService.CefProtocolServiceClient grpcClient)
         {
             InitializeComponent();
-
+            GrpcClient = grpcClient;
             Text = title;
-            WindowState = FormWindowState.Maximized;
+            WindowState = FormWindowState.Normal;
 
-            browser = new ChromiumWebBrowser("www.google.com");
+            browser = new ChromiumWebBrowser("https://chengkao.gdcxxy.net/gdcx/login2.php");
             toolStripContainer.ContentPanel.Controls.Add(browser);
-
             browser.IsBrowserInitializedChanged += OnIsBrowserInitializedChanged;
             browser.LoadingStateChanged += OnLoadingStateChanged;
             browser.ConsoleMessage += OnBrowserConsoleMessage;
@@ -38,7 +45,17 @@ namespace CefSharp.MinimalExample.WinForms
             browser.TitleChanged += OnBrowserTitleChanged;
             browser.AddressChanged += OnBrowserAddressChanged;
             browser.LoadError += OnBrowserLoadError;
-
+            browser.FrameLoadEnd += OnFrameLoadEnd;
+            browser.JsDialogHandler = new MyJsDialogHandler();
+            browser.JavascriptObjectRepository.ResolveObject += (sender, e) =>
+            {
+                var repo = e.ObjectRepository;
+                if (e.ObjectName == "JsBridge")
+                {
+                    var upload = new JsBridge(browser,this);
+                    repo.Register("JsBridge", upload, options: BindingOptions.DefaultBinder);
+                }
+            };
             var version = string.Format("Chromium: {0}, CEF: {1}, CefSharp: {2}",
                Cef.ChromiumVersion, Cef.CefVersion, Cef.CefSharpVersion);
 
@@ -56,6 +73,66 @@ namespace CefSharp.MinimalExample.WinForms
             DisplayOutput(string.Format("{0}, {1}", version, environment));
         }
 
+        /// <summary>
+        /// 页面加载完毕
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnFrameLoadEnd(object sender, FrameLoadEndEventArgs e)
+        {
+            Console.WriteLine("进入{0}", e.Url);
+            var url = new Uri(e.Url);
+            //注入公共js
+            string common_path = "./" + url.DnsSafeHost + "/common";
+
+            if (System.IO.Directory.Exists(common_path))
+            {
+                var files = System.IO.Directory.GetFiles(common_path, "*.js");
+                foreach (string script_path in files)
+                {
+                    transfuseScript(url.AbsolutePath, script_path);
+                }
+            }
+            //注入页面js
+            string path = "./" + url.DnsSafeHost + url.AbsolutePath;
+            if (System.IO.Directory.Exists(path))
+            {
+                var files = System.IO.Directory.GetFiles(path, "*.js");
+                foreach (string script_path in files)
+                {
+                    transfuseScript(url.AbsolutePath, script_path);
+                }
+            }
+            else
+            {
+                System.IO.Directory.CreateDirectory(path);
+            }
+        }
+
+        private void transfuseScript(string absolutePath, string script_path)
+        {
+            //遍历frame窗口 注入js代码
+            var list = browser.GetBrowser().GetFrameNames();
+            if (list.Count > 0)
+            {
+                foreach (var item in list)
+                {
+                    var frame = browser.GetBrowser().GetFrame(item);
+                    if (frame.Url == "")
+                    {
+                        continue;
+                    }
+                    Uri url = new Uri(frame.Url);
+                    if (url.AbsolutePath == absolutePath)
+                    {
+                        Console.WriteLine("注入页面:{0} 注入Script路径:{1}", absolutePath, script_path);
+                        var script = System.IO.File.ReadAllText(script_path);
+                        frame.ExecuteJavaScriptAsync(script);
+              
+                    }
+                }
+            }
+        }
         private void OnBrowserLoadError(object sender, LoadErrorEventArgs e)
         {
             //Actions that trigger a download will raise an aborted error.
@@ -83,7 +160,13 @@ namespace CefSharp.MinimalExample.WinForms
 
         private void OnBrowserConsoleMessage(object sender, ConsoleMessageEventArgs args)
         {
-            DisplayOutput(string.Format("Line: {0}, Source: {1}, Message: {2}", args.Line, args.Source, args.Message));
+            string msgStr = string.Format("Line: {0}, Source: {1}, Message: {2}", args.Line, args.Source, args.Message);
+            Task.Run(async () => {
+                var call = GrpcClient.Echo();
+                await call.RequestStream.WriteAsync(new LogItem { Msg= msgStr }); // 发送第一个消息
+                await call.RequestStream.CompleteAsync();
+            });
+           DisplayOutput(string.Format("Line: {0}, Source: {1}, Message: {2}", args.Line, args.Source, args.Message));
         }
 
         private void OnBrowserStatusMessage(object sender, StatusMessageEventArgs args)

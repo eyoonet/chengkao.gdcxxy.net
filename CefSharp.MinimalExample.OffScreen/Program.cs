@@ -2,10 +2,14 @@
 //
 // Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 
+using cef.protocol;
+using CefSharp.MinimalExample.OffScreen.JsCall;
 using CefSharp.OffScreen;
+using Grpc.Core;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,6 +20,8 @@ namespace CefSharp.MinimalExample.OffScreen
     /// </summary>
     public static class Program
     {
+        public static AutoResetEvent AppWait = new AutoResetEvent(false);
+
         /// <summary>
         /// Asynchronous demo using CefSharp.OffScreen
         /// Loads google.com, uses javascript to fill out the search box then takes a screenshot which is opened
@@ -30,8 +36,20 @@ namespace CefSharp.MinimalExample.OffScreen
             //Only required for PlatformTarget of AnyCPU
             CefRuntime.SubscribeAnyCpuAssemblyResolver();
 #endif
+            var channel = new Channel("localhost", 8099, ChannelCredentials.Insecure);
 
-            const string testUrl = "https://www.google.com/";
+            var service = new CefProtocolService.CefProtocolServiceClient(channel);
+
+            var response = service.GetSerial(new SerialRequest() { Id = Process.GetCurrentProcess().Id });
+            Console.WriteLine(response.Serial.ToString());
+            var serial = response.Serial.ToString();
+
+
+            if (response.Serial < 0)
+            {
+                //return 0;
+            }
+            const string testUrl = "https://www.baidu.com/";
 
             Console.WriteLine("This example application will load {0}, take a screenshot, and save it to your desktop.", testUrl);
             Console.WriteLine("You may see Chromium debugging output, please wait...");
@@ -50,7 +68,7 @@ namespace CefSharp.MinimalExample.OffScreen
                 var settings = new CefSettings()
                 {
                     //By default CefSharp will use an in-memory cache, you need to specify a Cache Folder to persist data
-                    CachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CefSharp\\Cache")
+                    CachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CefSharp\\Cache\\" + serial)
                 };
 
                 //Perform dependency check to make sure all relevant resources are in our output directory.
@@ -73,6 +91,54 @@ namespace CefSharp.MinimalExample.OffScreen
 
                     _ = await browser.EvaluateScriptAsync("document.querySelector('[name=q]').value = 'CefSharp Was Here!'");
 
+                    browser.ShowDevTools();
+                    //browser.ConsoleMessage += OnBrowserConsoleMessage;
+                    browser.JavascriptObjectRepository.ResolveObject += (sender, e) =>
+                    {
+                        var repo = e.ObjectRepository;
+                        if (e.ObjectName == "JsBridge")
+                        {
+                            var bridge = new JsBridge(browser);
+                            repo.Register("JsBridge", bridge, options: BindingOptions.DefaultBinder);
+                        }
+                    };
+                    browser.FrameLoadEnd += delegate (object sender, FrameLoadEndEventArgs e) {
+                        var url = new Uri(e.Url);
+                        //注入页面js
+                        string path = "./" + url.DnsSafeHost + url.AbsolutePath;
+                        if (System.IO.Directory.Exists(path))
+                        {
+                            var files = System.IO.Directory.GetFiles(path, "*.js");
+                            foreach (string script_path in files)
+                            {
+                                var absolutePath = url.AbsolutePath;
+                                var list = browser.GetBrowser().GetFrameNames();
+                                if (list.Count > 0)
+                                {
+                                    foreach (var item in list)
+                                    {
+                                        var frame = browser.GetBrowser().GetFrame(item);
+                                        if (frame.Url == "")
+                                        {
+                                            continue;
+                                        }
+                                        Uri _url = new Uri(frame.Url);
+                                        if (_url.AbsolutePath == absolutePath)
+                                        {
+                                            Console.WriteLine("注入页面:{0} 注入Script路径:{1}", absolutePath, script_path);
+                                            var script = System.IO.File.ReadAllText(script_path);
+                                            frame.ExecuteJavaScriptAsync(script);
+
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            System.IO.Directory.CreateDirectory(path);
+                        }
+                    };
                     //Give the browser a little time to render
                     await Task.Delay(500);
                     // Wait for the screenshot to be taken.
@@ -99,8 +165,8 @@ namespace CefSharp.MinimalExample.OffScreen
                 }
 
                 // Wait for user to press a key before exit
-                Console.ReadKey();
-
+                _ = AppWait.WaitOne();
+                //_ = AppWait.Set();
                 // Clean up Chromium objects. You need to call this in your application otherwise
                 // you will get a crash when closing.
                 Cef.Shutdown();
@@ -154,7 +220,7 @@ namespace CefSharp.MinimalExample.OffScreen
                     // Remove the load event handler, because we only want one snapshot of the page.
                     browser.LoadingStateChanged -= handler;
 
-                    var scriptTask = browser.EvaluateScriptAsync("document.querySelector('[name=q]').value = 'CefSharp Was Here!'");
+                    var scriptTask = browser.EvaluateScriptAsync("document.querySelector('[name=wd]').value = 'CefSharp Was Here!'");
 
                     scriptTask.ContinueWith(t =>
                     {
@@ -201,7 +267,7 @@ namespace CefSharp.MinimalExample.OffScreen
 
             // We have to wait for something, otherwise the process will exit too soon.
             Console.ReadKey();
-
+          
             // Clean up Chromium objects. You need to call this in your application otherwise
             // you will get a crash when closing.
             //The ChromiumWebBrowser instance will be disposed

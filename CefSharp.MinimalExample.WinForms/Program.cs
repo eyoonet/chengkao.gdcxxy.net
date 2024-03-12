@@ -2,27 +2,41 @@
 //
 // Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 
+using cef.protocol;
 using CefSharp.WinForms;
+using Grpc.Core;
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Runtime.Versioning;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
+
+#pragma warning disable CA1416 // 验证平台兼容性
 namespace CefSharp.MinimalExample.WinForms
 {
     public static class Program
     {
         [STAThread]
-        public static int Main(string[] args)
+        public static Task<int> Main(string[] args)
         {
-
 #if ANYCPU
             CefRuntime.SubscribeAnyCpuAssemblyResolver();
 #endif
 
+            var channel = new Channel("localhost", 8099, ChannelCredentials.Insecure);
+
+            var service = new CefProtocolService.CefProtocolServiceClient(channel);
+
+            var response = service.GetSerial(new SerialRequest() { Id = Process.GetCurrentProcess().Id });
+            Console.WriteLine(response.Serial.ToString());
+            var serial = response.Serial.ToString();
+
             var settings = new CefSettings()
             {
                 //By default CefSharp will use an in-memory cache, you need to specify a Cache Folder to persist data
-                CachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CefSharp\\Cache")
+                CachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CefSharp\\Cache\\" + serial)
             };
 
             //Example of setting a command line argument
@@ -41,9 +55,9 @@ namespace CefSharp.MinimalExample.WinForms
             Cef.Initialize(settings, performDependencyCheck: true, browserProcessHandler: null);
 
             Application.EnableVisualStyles();
-            Application.Run(new BrowserForm());
+            Application.Run(new BrowserForm(service));
 
-            return 0;
+            return Task.FromResult(0);
         }
     }
 }
